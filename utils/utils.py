@@ -27,8 +27,7 @@ def err(msg):
     assert False
 
 def warn(msg):
-    print(RED+BOLD+'[WARN] '+END)
-
+    print(RED+BOLD+'[WARN] '+msg+END)
 
 CACHE_PATH = os.path.expanduser('~/.cache/texas-papers')
 
