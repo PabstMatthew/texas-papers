@@ -122,9 +122,7 @@ def consolidate_whitespace(txt):
 
 # Converts all-caps words to a normally capitalized word.
 def allcaps2firstcaps(txt):
-    def decaps(match_obj):
-        return match_obj.group(1)+match_obj.group(2).lower()
-    return re.sub('([A-Z])([A-Z]+)', decaps, txt)
+    return re.sub('([A-Z])([A-Z]+)', lambda match: match.group(1)+match.group(2).lower(), txt)
 
 # Removes random punctutation artefacts from OCR.
 def remove_spurious_punctuation(txt):
@@ -133,7 +131,96 @@ def remove_spurious_punctuation(txt):
     # Remove lines of em-dashes
     txt = re.sub(r'——+', '', txt)
     # Remove random punctuation before words.
-    txt = re.sub(r' [\-—’]+\w', ' ', txt)
+    txt = re.sub(r' [.\-—’]+\w', ' ', txt)
+    # Consolidate punctuation.
+    txt = re.sub(r'[.]+', '.', txt)
+    txt = re.sub(r'[’]+', '’', txt)
+    # Remove random punctuation within words.
+    def remove_middle(match_obj):
+        return match_obj.group(1)+match_obj.group(2)
+    txt = re.sub(r'(\w)[?,;:$!](\w)', remove_middle, txt)
+    # Remove punctuation immediately after a period.
+    txt = re.sub(r'\.\s*[?\-—,!$’]\s*', '. ', txt)
+    return txt
+
+def split_words(txt):
+    return re.sub(r'([a-z])([A-Z])', lambda match: match.group(1)+' '+match.group(2), txt)
+
+'''
+    Code to do autocorrect.
+'''
+import pkg_resources
+from symspellpy import SymSpell, Verbosity
+
+def nonsense_word(word):
+    if len(word) < 2:
+        return False
+    word = word.lower()
+    vwl_set = {'a', 'e', 'i', 'o', 'u', 'y'}
+    con_set = set(string.ascii_lowercase).difference(vwl_set)
+    vwls = 0
+    for i in range(len(word)):
+        c = word[i]
+        if c in vwl_set:
+            vwls += 1
+        if i > 1:
+            # 3 of the same letter in a row is nonsense.
+            l_c = word[i-1]
+            ll_c = word[i-2]
+            if c == l_c and l_c == ll_c:
+                return True
+            if c in con_set and ((c == l_c and ll_c in con_set) or (c == ll_c and l_c in con_set)):
+                return True
+        if i > 0:
+            # Some pairs of letters should never occur.
+            bad_pairs = {'cs', 'cv', 'vv', 'vc'}
+            pair = word[i-1:i]
+            if pair in bad_pairs:
+                return True
+    vwl_freq = vwls / len(word)
+    # Some vowel frequencies are impossible.
+    return vwl_freq < 0.1 and vwl_freq > 0.9
+
+def fix_spelling(txt):
+    # Dictionary initialization.
+    max_edit = 3
+    sym_spell = SymSpell(max_dictionary_edit_distance=max_edit, prefix_length=7)
+    dictionary_path = pkg_resources.resource_filename(
+            "symspellpy", "frequency_dictionary_en_82_765.txt")
+    bigram_path = pkg_resources.resource_filename(
+            "symspellpy", "frequency_bigramdictionary_en_243_342.txt")
+    sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
+    sym_spell.load_bigram_dictionary(bigram_path, term_index=0, count_index=2)
+
+    def fix_word(match_obj):
+        word = match_obj.group(0)
+        # Ignore capitalized words.
+        if word[0].islower():
+            # Ignore words that should be in the dictionary.
+            whitelist = {'s', 'p', 'm', 'cirstance', 'pharmaceutist', 'imperiled', 'memoranda', 'distractive', 'favorably', 'brakemen', 'paralyzed', 'commissed', 'annualy', 'cremationists', 'labor', 'honored', 'fulfillment', 'saltpeter', 'jewelry', 'accidently', 'rumored', 'ocurred'}
+            if word in whitelist:
+                return word
+            # First, try to split this word up.
+            suggestions = sym_spell.lookup_compound(word, max_edit_distance=max_edit)
+            if len(suggestions) > 0:
+                suggestion = suggestions[0]
+                if suggestion.distance > 0 and suggestion.distance <= max_edit and suggestion.count > 100:
+                    #dbg('{} -> {}'.format(word, suggestion))
+                    return suggestion.term
+            # Then check for similar words.
+            suggestions = sym_spell.lookup(word, Verbosity.TOP, max_edit_distance=max_edit)
+            if len(suggestions) > 0:
+                suggestion = suggestions[0]
+                if suggestion.distance > 0 and suggestion.distance <= max_edit and suggestion.count > 100:
+                    #dbg('{} -> {}'.format(word, suggestion))
+                    return suggestion.term
+        # Check if this word is plausibly real.
+        if nonsense_word(word):
+            print(word)
+            return ''
+        return word
+
+    txt = re.sub('[a-zA-Z]+', fix_word, txt)
     return txt
 
 # Combines all the above methods on OCR'd text.
@@ -143,11 +230,15 @@ def postprocess(txt):
     txt = consolidate_whitespace(txt)
     txt = allcaps2firstcaps(txt)
     txt = remove_spurious_punctuation(txt)
-    #txt = fix_spelling(txt)
+    txt = split_words(txt)
+    txt = fix_spelling(txt)
     return txt
 
 if __name__ == '__main__':
-    test_url = 'https://chroniclingamerica.loc.gov/lccn/sn86088296/1883-04-19/ed-1/seq-1.jp2'
+    if len(sys.argv) > 1:
+        test_url = sys.argv[1]
+    else:
+        test_url = 'https://chroniclingamerica.loc.gov/lccn/sn86088296/1883-04-19/ed-1/seq-1.jp2'
     txt = img2txt(test_url)
     end_idx = txt.find('Special Telegram')
     if end_idx != -1:
@@ -160,52 +251,5 @@ if __name__ == '__main__':
         ground_truth = simplify_paragraphs(ground_truth)
     #print(txt)
     #print(ground_truth)
-    print(word_similarity(ground_truth, txt))
+    #print(word_similarity(ground_truth, txt))
 
-'''
-    Code to do autocorrect, which didn't improve similarity scores.
-'''
-
-'''
-import pkg_resources
-from symspellpy import SymSpell, Verbosity
-
-def fix_spelling(txt):
-    # Dictionary initialization.
-    max_edit = 1
-    sym_spell = SymSpell(max_dictionary_edit_distance=max_edit, prefix_length=7)
-    dictionary_path = pkg_resources.resource_filename(
-            "symspellpy", "frequency_dictionary_en_82_765.txt")
-    bigram_path = pkg_resources.resource_filename(
-            "symspellpy", "frequency_bigramdictionary_en_243_342.txt")
-    sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
-    sym_spell.load_bigram_dictionary(bigram_path, term_index=0, count_index=2)
-
-    def fix_word(match_obj):
-        word = match_obj.group(0)
-        # Ignore capitalized words.
-        if word[0].isupper():
-            return word
-        # Ignore words that should be in the dictionary.
-        whitelist = {'s', 'p', 'm', 'cirstance', 'pharmaceutist', 'imperiled', 'memoranda', 'distractive', 'favorably', 'brakemen', 'paralyzed', 'commissed', 'annualy', 'cremationists', 'labor', 'honored', 'fulfillment', 'saltpeter', 'jewelry', 'accidently', 'rumored', 'ocurred'}
-        if word in whitelist:
-            return word
-        # First, try to split this word up.
-        suggestions = sym_spell.lookup_compound(word, max_edit_distance=max_edit)
-        if len(suggestions) > 0:
-            suggestion = suggestions[0]
-            if suggestion.distance > 0 and suggestion.distance <= max_edit and suggestion.count > 100:
-                #dbg('{} -> {}'.format(word, suggestion))
-                return suggestion.term
-        # Then check for similar words.
-        suggestions = sym_spell.lookup(word, Verbosity.TOP, max_edit_distance=max_edit)
-        if len(suggestions) > 0:
-            suggestion = suggestions[0]
-            if suggestion.distance > 0 and suggestion.distance <= max_edit and suggestion.count > 100:
-                #dbg('{} -> {}'.format(word, suggestion))
-                return suggestion.term
-        return word
-
-    txt = re.sub('[a-zA-Z]+', fix_word, txt)
-    return txt
-'''

@@ -4,7 +4,7 @@ papers = {
 
 '''
 Marshall:       1849-1869
-    (1K issues)
+    (1K issues, very poor quality)
 Dallas:         1855-1885, 1919-1922
     (5K issues)
 Austin:         1871-1898
