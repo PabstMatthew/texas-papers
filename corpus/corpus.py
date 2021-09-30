@@ -2,21 +2,23 @@ import string
 import os
 import re
 import sys
-
-from difflib import SequenceMatcher
 from urllib.request import urlretrieve
 from urllib.parse import urlparse
+from difflib import SequenceMatcher
+
 import pytesseract
 import nltk
 
-sys.path.append('/home/matthewp/texas-papers')
+sys.path.append('.')
 from utils.utils import *
 
 '''
     OCR configuration variables.
 '''
+punctuation = '.?!“”’-—,;:$()'
+punctuation_regex = '[.?!“”’\-—,;:$()]'
 ocr_config_dict = {
-        'tessedit_char_whitelist': "'"+string.ascii_letters+string.digits+".?!“”’-—,;:$() '",
+        'tessedit_char_whitelist': "'"+string.ascii_letters+string.digits+punctuation+" '",
         'tessedit_fix_hyphens': '1',
         'enable_noise_removal': '1',
         'tessedit_fix_fuzzy_spaces': '1',
@@ -141,6 +143,8 @@ def remove_spurious_punctuation(txt):
     txt = re.sub(r'(\w)[?,;:$!](\w)', remove_middle, txt)
     # Remove punctuation immediately after a period.
     txt = re.sub(r'\.\s*[?\-—,!$’]\s*', '. ', txt)
+    # Remove punctuation followed by other punctutation.
+    txt = re.sub('({p})(\s*{p})+'.format(p=punctuation_regex), lambda match: match.group(1), txt)
     return txt
 
 def split_words(txt):
@@ -153,14 +157,18 @@ import pkg_resources
 from symspellpy import SymSpell, Verbosity
 
 def nonsense_word(word):
-    if len(word) < 2:
-        return False
     word = word.lower()
+    if len(word) == 1:
+        return not word in {'a', 'i'} 
+    if len(word) < 4:
+        return False
     vwl_set = {'a', 'e', 'i', 'o', 'u', 'y'}
     con_set = set(string.ascii_lowercase).difference(vwl_set)
     vwls = 0
     for i in range(len(word)):
         c = word[i]
+        if c.isdigit():
+            return True
         if c in vwl_set:
             vwls += 1
         if i > 1:
@@ -169,7 +177,7 @@ def nonsense_word(word):
             ll_c = word[i-2]
             if c == l_c and l_c == ll_c:
                 return True
-            if c in con_set and ((c == l_c and ll_c in con_set) or (c == ll_c and l_c in con_set)):
+            if c in con_set and c != 'r' and c != 's' and ((c == l_c and ll_c in con_set) or (c == ll_c and l_c in con_set)):
                 return True
         if i > 0:
             # Some pairs of letters should never occur.
@@ -179,11 +187,11 @@ def nonsense_word(word):
                 return True
     vwl_freq = vwls / len(word)
     # Some vowel frequencies are impossible.
-    return vwl_freq < 0.1 and vwl_freq > 0.9
+    return vwl_freq < 0.1 or vwl_freq > 0.9
 
 def fix_spelling(txt):
     # Dictionary initialization.
-    max_edit = 3
+    max_edit = 1
     sym_spell = SymSpell(max_dictionary_edit_distance=max_edit, prefix_length=7)
     dictionary_path = pkg_resources.resource_filename(
             "symspellpy", "frequency_dictionary_en_82_765.txt")
@@ -195,33 +203,37 @@ def fix_spelling(txt):
     def fix_word(match_obj):
         word = match_obj.group(0)
         # Ignore capitalized words.
-        if word[0].islower():
-            # Ignore words that should be in the dictionary.
-            whitelist = {'s', 'p', 'm', 'cirstance', 'pharmaceutist', 'imperiled', 'memoranda', 'distractive', 'favorably', 'brakemen', 'paralyzed', 'commissed', 'annualy', 'cremationists', 'labor', 'honored', 'fulfillment', 'saltpeter', 'jewelry', 'accidently', 'rumored', 'ocurred'}
-            if word in whitelist:
-                return word
-            # First, try to split this word up.
-            suggestions = sym_spell.lookup_compound(word, max_edit_distance=max_edit)
-            if len(suggestions) > 0:
-                suggestion = suggestions[0]
-                if suggestion.distance > 0 and suggestion.distance <= max_edit and suggestion.count > 100:
-                    #dbg('{} -> {}'.format(word, suggestion))
-                    return suggestion.term
-            # Then check for similar words.
-            suggestions = sym_spell.lookup(word, Verbosity.TOP, max_edit_distance=max_edit)
-            if len(suggestions) > 0:
-                suggestion = suggestions[0]
-                if suggestion.distance > 0 and suggestion.distance <= max_edit and suggestion.count > 100:
-                    #dbg('{} -> {}'.format(word, suggestion))
-                    return suggestion.term
+        if word.isdigit():
+            return word
+        #if not word[0].isupper():
+        # Ignore words that should be in the dictionary.
+        whitelist = {'Weinstein', 'San', 'Mr', 'Dr', 'Ms', 'Mrs', 's', 'p', 'm', 'cirstance', 'pharmaceutist', 'imperiled', 'memoranda', 'distractive', 'favorably', 'brakemen', 'paralyzed', 'commissed', 'annualy', 'cremationists', 'labor', 'honored', 'fulfillment', 'saltpeter', 'jewelry', 'accidently', 'rumored'}
+        if word in whitelist:
+            return word
+        # Check for similar words.
+        suggestions = sym_spell.lookup(word, Verbosity.TOP, max_edit_distance=max_edit, transfer_casing=True)
+        if len(suggestions) > 0:
+            suggestion = suggestions[0]
+            if suggestion.distance != 0 and suggestion.distance <= max_edit and suggestion.count > 100:
+                dbg('{} -> {}'.format(word, suggestion))
+                return suggestion.term
+        # Try to split this word up.
+        suggestions = sym_spell.lookup_compound(word, max_edit_distance=max_edit, transfer_casing=True)
+        if len(suggestions) > 0:
+            suggestion = suggestions[0]
+            if suggestion.distance != 0 and suggestion.distance <= max_edit and suggestion.count > 100:
+                dbg('{} -> {}'.format(word, suggestion))
+                return suggestion.term
         # Check if this word is plausibly real.
         if nonsense_word(word):
-            print(word)
             return ''
         return word
 
-    txt = re.sub('[a-zA-Z]+', fix_word, txt)
+    txt = re.sub('[\w():;]*[\w]', fix_word, txt)
     return txt
+
+def remove_spurious_letters(txt):
+    return re.sub('\W([a-zA-Z]) [a-zA-Z]\W', lambda match: match.group(1), txt)
 
 # Combines all the above methods on OCR'd text.
 def postprocess(txt):
@@ -229,9 +241,10 @@ def postprocess(txt):
     #txt = simplify_paragraphs(txt)
     txt = consolidate_whitespace(txt)
     txt = allcaps2firstcaps(txt)
-    txt = remove_spurious_punctuation(txt)
     txt = split_words(txt)
     txt = fix_spelling(txt)
+    txt = remove_spurious_punctuation(txt)
+    txt = remove_spurious_letters(txt)
     return txt
 
 if __name__ == '__main__':
@@ -239,6 +252,9 @@ if __name__ == '__main__':
         test_url = sys.argv[1]
     else:
         test_url = 'https://chroniclingamerica.loc.gov/lccn/sn86088296/1883-04-19/ed-1/seq-1.jp2'
+        with open('corpus/ground-truth-lccn_sn86088296_1883-04-19_ed-1_seq-1.txt', 'r') as f:
+            ground_truth = f.read()
+            ground_truth = simplify_paragraphs(ground_truth)
     txt = img2txt(test_url)
     end_idx = txt.find('Special Telegram')
     if end_idx != -1:
@@ -246,9 +262,6 @@ if __name__ == '__main__':
     else:
         warn('Failed to end text!')
         dbg(txt)
-    with open('corpus/ground-truth-lccn_sn86088296_1883-04-19_ed-1_seq-1.txt', 'r') as f:
-        ground_truth = f.read()
-        ground_truth = simplify_paragraphs(ground_truth)
     #print(txt)
     #print(ground_truth)
     #print(word_similarity(ground_truth, txt))

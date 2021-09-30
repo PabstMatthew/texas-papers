@@ -4,6 +4,7 @@ import pickle as pkl
 
 DEBUG = True
 
+CYAN = '\033[96m'
 BLUE = '\033[94m'
 RED = '\033[92m'
 BOLD = '\033[1m'
@@ -22,6 +23,9 @@ def dbg(msg, end='\n', label=True):
         print(msg, end=end)
         sys.stdout.flush()
 
+def info(msg):
+    print(CYAN+BOLD+'[INFO] '+msg+END)
+
 def err(msg):
     print(RED+BOLD+'[ERR] '+END+msg)
     assert False
@@ -29,7 +33,7 @@ def err(msg):
 def warn(msg):
     print(RED+BOLD+'[WARN] '+msg+END)
 
-CACHE_PATH = os.path.expanduser('~/.cache/texas-papers')
+CACHE_PATH = '.cache'
 
 def cache_write(scope, name, data, flush=False):
     # Make sure the cache exists.
