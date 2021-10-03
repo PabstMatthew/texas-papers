@@ -24,7 +24,7 @@ def dbg(msg, end='\n', label=True):
         sys.stdout.flush()
 
 def info(msg):
-    print(CYAN+BOLD+'[INFO] '+msg+END)
+    print(CYAN+BOLD+'[INFO] '+END+msg)
 
 def err(msg):
     print(RED+BOLD+'[ERR] '+END+msg)

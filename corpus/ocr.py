@@ -215,14 +215,14 @@ def fix_spelling(txt):
         if len(suggestions) > 0:
             suggestion = suggestions[0]
             if suggestion.distance != 0 and suggestion.distance <= max_edit and suggestion.count > 100:
-                dbg('{} -> {}'.format(word, suggestion))
+                #dbg('{} -> {}'.format(word, suggestion))
                 return suggestion.term
         # Try to split this word up.
         suggestions = sym_spell.lookup_compound(word, max_edit_distance=max_edit, transfer_casing=True)
         if len(suggestions) > 0:
             suggestion = suggestions[0]
             if suggestion.distance != 0 and suggestion.distance <= max_edit and suggestion.count > 100:
-                dbg('{} -> {}'.format(word, suggestion))
+                #dbg('{} -> {}'.format(word, suggestion))
                 return suggestion.term
         # Check if this word is plausibly real.
         if nonsense_word(word):

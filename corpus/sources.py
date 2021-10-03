@@ -1,16 +1,20 @@
 import re
 import sys
+import time
+import random
 from urllib.request import urlopen
+
+import nltk
 
 sys.path.append('.')
 from utils.utils import *
+from corpus.ocr import img2txt
 
 '''
     A set of newspaper that have high-quality scans.
 '''
 corpuses = {
-        #'Dallas-Daily-Herald':          ('sn83025733', range(1873, 1887)),
-        'Dallas-Daily-Herald':          ('sn83025733', range(1873, 1874)),
+        'Dallas-Daily-Herald':          ('sn83025733', range(1873, 1887)),
         'Austin-Weekly-Statesman':      ('sn86088296', range(1883, 1898)),
         'Waco-Evening-News':            ('sn86088201', range(1892, 1894)),
         'San-Marcos-Free-Press':        ('sn86088181', range(1877, 1890)),
@@ -34,7 +38,13 @@ def scrape_image_links(name, resource_id, years):
 
     def get_html(url):
         dbg('Scraping '+url)
-        fp = urlopen(url)
+        try:
+            fp = urlopen(url)
+        except Exception as e:
+            time.sleep(1)
+            warn('Encountered error: {}'.format(e))
+            warn('Retrying ...')
+            fp = urlopen(url)
         data = fp.read()
         html = data.decode('utf8')
         return html
@@ -72,8 +82,49 @@ def build_link_database():
         years = data[1]
         scrape_image_links(name, resource_id, years)
 
+'''
+    Scrapes text from a list of links to form a corpus of text.
+        links: a list of strings that are links to images.
+        returns: a string containing all the text.
+'''
+def scrape_text(name, links):
+    # Number of words to scrape for the corpus.
+    TARGET_EXP = 6
+    TARGET_CORPUS_SIZE = 10 ** TARGET_EXP
+    scope = 'Text'
+    # Check the cache first.
+    name += '-10e' + str(TARGET_EXP)
+    cached_txt = cache_read(scope, name)
+    if cached_txt:
+        return cached_txt
+    # Process the links in a random order.
+    num_words = 0
+    txts = []
+    random.shuffle(links)
+    for link in links:
+        info('Processing "{}" ...'.format(link))
+        txt = img2txt(link)
+        txts.append(txt)
+        words = nltk.word_tokenize(txt)
+        num_words += sum(map(lambda word: 1 if word.isalpha() else 0, words))
+        completion = num_words / TARGET_CORPUS_SIZE
+        info('  Finished! {:.2f}% complete with this corpus.'.format(completion*100.0))
+        if completion >= 1.0:
+            break
+    info('Completed creating corpus "{}".'.format(name))
+    cache_write(scope, name, links)
+    return '\n'.join(txts)
+
+def build_corpuses():
+    for name, data in corpuses.items():
+        info('Building corpus for "{}"'.format(name))
+        resource_id = data[0]
+        years = data[1]
+        links = scrape_image_links(name, resource_id, years)
+        corpus = scrape_text(name, links)
+
 if __name__ == '__main__':
-    build_link_database()
+    build_corpuses()
 
 '''
 Marshall:       1849-1869
