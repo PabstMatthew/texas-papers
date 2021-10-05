@@ -21,7 +21,7 @@ corpuses = {
         'San-Antonio-Light':            ('sn87090966', range(1883, 1886)),
         'Fort-Worth-Daily-Gazette':     ('sn86064205', range(1883, 1890)),
         'Brownsville-Daily-Herald':     ('sn86099906', range(1897, 1909)),
-        'Bryan-Morning-Eagle':          ('sn86088652', range(1989, 1909)),
+        'Bryan-Morning-Eagle':          ('sn86088652', range(1889, 1909)),
         'El-Paso-Daily-Herald':         ('sn86064199', range(1896, 1901)),
 }
 
@@ -112,8 +112,9 @@ def scrape_text(name, links):
         if completion >= 1.0:
             break
     info('Completed creating corpus "{}".'.format(name))
-    cache_write(scope, name, links)
-    return '\n'.join(txts)
+    txt = '\n'.join(txts)
+    cache_write(scope, name, txt)
+    return txt
 
 def build_corpuses():
     for name, data in corpuses.items():

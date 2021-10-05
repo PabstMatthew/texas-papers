@@ -2,6 +2,7 @@ import string
 import os
 import re
 import sys
+import time
 from urllib.request import urlretrieve
 from urllib.parse import urlparse
 from difflib import SequenceMatcher
@@ -53,7 +54,13 @@ def ocr(url, cleanup=True):
 
     # Download the file.
     dbg_start('Downloading file "{}"'.format(fname))
-    urlretrieve(url, fname)
+    try:
+        urlretrieve(url, fname)
+    except Exception as e:
+        time.sleep(1)
+        warn('Encountered error: {}'.format(e))
+        warn('Retrying ...')
+        urlretrieve(url, fname)
     dbg_end()
 
     # Run the OCR.
