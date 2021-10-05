@@ -6,24 +6,9 @@ from urllib.request import urlopen
 
 import nltk
 
+from ocr import img2txt
 sys.path.append('.')
 from utils.utils import *
-from corpus.ocr import img2txt
-
-'''
-    A set of newspaper that have high-quality scans.
-'''
-corpuses = {
-        'Dallas-Daily-Herald':          ('sn83025733', range(1873, 1887)),
-        'Austin-Weekly-Statesman':      ('sn86088296', range(1883, 1898)),
-        'Waco-Evening-News':            ('sn86088201', range(1892, 1894)),
-        'San-Marcos-Free-Press':        ('sn86088181', range(1877, 1890)),
-        'San-Antonio-Light':            ('sn87090966', range(1883, 1886)),
-        'Fort-Worth-Daily-Gazette':     ('sn86064205', range(1883, 1890)),
-        'Brownsville-Daily-Herald':     ('sn86099906', range(1897, 1909)),
-        'Bryan-Morning-Eagle':          ('sn86088652', range(1889, 1909)),
-        'El-Paso-Daily-Herald':         ('sn86064199', range(1896, 1901)),
-}
 
 '''
     Scrapes links to newspaper scans given a resource ID and set of years.
@@ -75,13 +60,6 @@ def scrape_image_links(name, resource_id, years):
     cache_write(scope, name, links)
     return links
 
-def build_link_database():
-    for name, data in corpuses.items():
-        info('Building image link database for "{}"'.format(name))
-        resource_id = data[0]
-        years = data[1]
-        scrape_image_links(name, resource_id, years)
-
 '''
     Scrapes text from a list of links to form a corpus of text.
         links: a list of strings that are links to images.
@@ -115,17 +93,6 @@ def scrape_text(name, links):
     txt = '\n'.join(txts)
     cache_write(scope, name, txt)
     return txt
-
-def build_corpuses():
-    for name, data in corpuses.items():
-        info('Building corpus for "{}"'.format(name))
-        resource_id = data[0]
-        years = data[1]
-        links = scrape_image_links(name, resource_id, years)
-        corpus = scrape_text(name, links)
-
-if __name__ == '__main__':
-    build_corpuses()
 
 '''
 Marshall:       1849-1869
