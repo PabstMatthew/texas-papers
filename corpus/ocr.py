@@ -57,8 +57,8 @@ def ocr(url, cleanup=True):
     try:
         urlretrieve(url, fname)
     except Exception as e:
-        time.sleep(1)
         warn('Encountered error: {}'.format(e))
+        time.sleep(1)
         warn('Retrying ...')
         urlretrieve(url, fname)
     dbg_end()

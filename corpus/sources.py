@@ -6,7 +6,7 @@ from urllib.request import urlopen
 
 import nltk
 
-from ocr import img2txt
+from corpus.ocr import img2txt
 sys.path.append('.')
 from utils.utils import *
 
@@ -26,8 +26,8 @@ def scrape_image_links(name, resource_id, years):
         try:
             fp = urlopen(url)
         except Exception as e:
-            time.sleep(1)
             warn('Encountered error: {}'.format(e))
+            time.sleep(1)
             warn('Retrying ...')
             fp = urlopen(url)
         data = fp.read()
