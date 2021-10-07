@@ -8,7 +8,9 @@ from gensim.models import Word2Vec
 
 sys.path.append('.')
 from utils.utils import *
-from corpus.corpus import corpora
+import corpus.corpus
+
+MODEL_TYPES = ['ppmi', 'svd', 'sgn']
 
 # The hyperparameters used to train models.
 HYPERPARAMS = {
@@ -58,7 +60,7 @@ def build_dictionary():
     dbg('Building a dictionary for the available corpora ...')
     freq_threshold = HYPERPARAMS['freq_threshold']
     dictionary = None
-    for name, txt in corpora():
+    for name, txt in corpus.corpora():
         words = nltk.word_tokenize(txt)
         dist = FreqDist(map(lambda word: word.lower(), 
                     filter(lambda word: word.isalpha(), words)))
@@ -155,7 +157,11 @@ def context_window(i, words):
         txt: a string containing all the text in the corpus.
         returns: a list of lists of strings representing all sentences in the corpus.
 '''
-def build_sentences(txt):
+def build_sentences(name, txt):
+    scope = 'Sentences'
+    cached_sentences = cache_read(scope, name)
+    if cached_sentences:
+        return cached_sentences
     sentences = []
     for sentence in nltk.sent_tokenize(txt):
         # Preprocess the words in the sentence.
@@ -164,6 +170,7 @@ def build_sentences(txt):
                         map(preprocess_tagged_word,
                             nltk.pos_tag(nltk.word_tokenize(sentence)))))
         sentences.append(words)
+    cache_write(scope, name, sentences)
     return sentences
 
 '''
@@ -286,27 +293,33 @@ def train_sgn(sentences):
 
 def train_model(name, sentences, model_type):
     scope = 'Model'
-    name += '-'+MODEL_TYPE
+    name += '-'+model_type
     cached_model = cache_read(scope, name)
     info('Training model "{}" ...'.format(name))
     if cached_model:
         dbg('Loaded cached model with hyperparameters: {}'.format(str(cached_model[0])))
         return cached_model[1]
-    if MODEL_TYPE == 'ppmi':
+    if model_type == 'ppmi':
         model = train_ppmi(sentences)
-    elif MODEL_TYPE == 'svd':
+    elif model_type == 'svd':
         model = train_svd(sentences)
-    elif MODEL_TYPE == 'sgn':
+    elif model_type == 'sgn':
         model = train_sgn(sentences)
     else:
-        err('Unsupported model type "{}"!'.format(MODEL_TYPE))
+        err('Unsupported model type "{}"!'.format(model_type))
     if not model is None: 
         cache_write(scope, name, (HYPERPARAMS, model))
     return model
 
+def models(model_type):
+    for name, txt in corpus.corpora():
+        sentences = build_sentences(name, txt)
+        model = train_model(name, sentences, model_type)
+        yield name, model
+
 if __name__ == '__main__':
-    for name, txt in corpora():
-        for model_type in ['ppmi', 'svd', 'sgn']:
-            sentences = build_sentences(txt)
-            model = train_model(name, sentences, model_type)
+    # If this script is called, just build every model so they're cached.
+    for model_type in MODEL_TYPES:
+        for name, model in models(model_type):
+            pass
 
