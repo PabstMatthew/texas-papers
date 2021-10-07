@@ -3,7 +3,10 @@ import sys
 import nltk
 from nltk.probability import FreqDist
 
-from corpus.sources import scrape_image_links, scrape_text
+try:
+    from corpus.sources import scrape_image_links, scrape_text
+except ImportError:
+    from sources import scrape_image_links, scrape_text
 sys.path.append('.')
 from utils.utils import *
 
@@ -25,7 +28,7 @@ corpus_info = {
 '''
     Generator that yields pairs of the form (<corpus_name>, <corpus_text>)
 '''
-def corpuses():
+def corpora():
     for name, data in corpus_info.items():
         cached_text = cache_read('Text', name+'-10e6')
         if cached_text:
@@ -36,24 +39,14 @@ def corpuses():
     in order to build out the cache containing all the corpus data.
 '''
 def build_corpus_cache():
-    dictionary = FreqDist()
+    dictionary = None
+    freq_threshold = 20
     for name, data in corpus_info.items():
         info('Building corpus for "{}"'.format(name))
         resource_id = data[0]
         years = data[1]
         links = scrape_image_links(name, resource_id, years)
         corpus = scrape_text(name, links)
-        words = nltk.word_tokenize(txt)
-        dictionary.update(FreqDist(
-                map(lambda word: word.lower(), 
-                    filter(lambda word: word.isalpha(), words))))
-    # Create a dictionary, filtering out infrequent words, and write it to a file.
-    for word, count in list(dictionary.items()):
-        if count < 10:
-            del dictionary[word]
-    info('Built a dictionary of size {}'.format(dictionary.B()))
-    with open('dictionary.txt', 'w') as f:
-        f.write('\n'.join(dictionary.sorted()))
 
 '''
     Iterates over known corpuses and scrapes links to images in order to build out the cache 

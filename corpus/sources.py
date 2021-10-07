@@ -6,7 +6,10 @@ from urllib.request import urlopen
 
 import nltk
 
-from corpus.ocr import img2txt
+try:
+    from corpus.ocr import img2txt
+except ImportError:
+    from ocr import img2txt
 sys.path.append('.')
 from utils.utils import *
 
