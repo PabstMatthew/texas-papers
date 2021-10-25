@@ -31,10 +31,11 @@ ocr_config_str = ' '.join(['-c '+key+'='+value for key, value in ocr_config_dict
 '''
     Uses OCR and post-processing to convert an image to text.
         url: a URL pointing to an image with text in it.
+        cached_only: if True, then returns None if the text was uncached.
         returns: a string of the post-processed text in the image.
 '''
-def img2txt(url):
-    txt = ocr(url)
+def img2txt(url, cached_only=False):
+    txt = ocr(url, cached_only=cached_only)
     txt = postprocess(txt)
     return txt
 
@@ -43,7 +44,7 @@ def img2txt(url):
         url: a URL pointing to an image with text in it.
         returns: a string of the text in the image.
 '''
-def ocr(url, cleanup=True):
+def ocr(url, cleanup=True, cached_only=False):
     scope = 'OCRText'
     fname = urlparse(url).path[1:].replace('/', '_')
 
@@ -51,6 +52,8 @@ def ocr(url, cleanup=True):
     cached_txt = cache_read(scope, fname)
     if cached_txt:
         return cached_txt
+    elif cached_only:
+        return None
 
     # Download the file.
     dbg_start('Downloading file "{}"'.format(fname))
@@ -244,6 +247,8 @@ def remove_spurious_letters(txt):
 
 # Combines all the above methods on OCR'd text.
 def postprocess(txt):
+    if txt is None:
+        return None
     txt = fix_hyphens(txt)
     #txt = simplify_paragraphs(txt)
     txt = consolidate_whitespace(txt)

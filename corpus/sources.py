@@ -70,7 +70,7 @@ def scrape_image_links(name, resource_id, years):
 '''
 def scrape_text(name, links):
     # Number of words to scrape for the corpus.
-    TARGET_EXP = 6
+    TARGET_EXP = 7
     TARGET_CORPUS_SIZE = 10 ** TARGET_EXP
     scope = 'Text'
     # Check the cache first.
@@ -78,19 +78,31 @@ def scrape_text(name, links):
     cached_txt = cache_read(scope, name)
     if cached_txt:
         return cached_txt
-    # Process the links in a random order.
-    num_words = 0
     txts = []
-    random.shuffle(links)
-    for link in links:
+    num_words = 0
+    def handle_txt(txt):
+        nonlocal txts, num_words
         info('Processing "{}" ...'.format(link))
-        txt = img2txt(link)
         txts.append(txt)
         words = nltk.word_tokenize(txt)
         num_words += sum(map(lambda word: 1 if word.isalpha() else 0, words))
         completion = num_words / TARGET_CORPUS_SIZE
         info('  Finished! {:.2f}% complete with this corpus.'.format(completion*100.0))
-        if completion >= 1.0:
+        return completion >= 1.0
+    # First, use any links that were cached.
+    uncached_links = []
+    for link in links:
+        txt = img2txt(link, cached_only=True)
+        if txt:
+            if handle_txt(txt):
+                break
+        else:
+            uncached_links.append(link)
+    # Process the remaining links in a random order.
+    random.shuffle(uncached_links)
+    for link in uncached_links:
+        txt = img2txt(link)
+        if handle_txt(txt):
             break
     info('Completed creating corpus "{}".'.format(name))
     txt = '\n'.join(txts)

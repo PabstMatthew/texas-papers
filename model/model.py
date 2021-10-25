@@ -8,7 +8,7 @@ from gensim.models import Word2Vec
 
 sys.path.append('.')
 from utils.utils import *
-import corpus.corpus
+from corpus import corpus
 
 MODEL_TYPES = ['ppmi', 'svd', 'sgn']
 
@@ -282,23 +282,26 @@ def train_ppmi(sentences):
     return ppmi_matrix
 
 def train_svd(sentences):
-    ppmi_matrix = train_ppmi(count_matrix)
+    ppmi_matrix = train_ppmi(sentences)
     svd_matrix = build_svd_matrix(ppmi_matrix)
     return svd_matrix
 
 def train_sgn(sentences):
     embedding_size = HYPERPARAMS['embedding_size']
     sgn = Word2Vec(sentences, vector_size=embedding_size, sg=1)
-    return sgn
+    model = np.zeros((len(DICTIONARY), embedding_size))
+    for i, word in enumerate(WORD_LIST):
+        model[i] = sgn.wv[word]
+    return model
 
 def train_model(name, sentences, model_type):
     scope = 'Model'
     name += '-'+model_type
     cached_model = cache_read(scope, name)
-    info('Training model "{}" ...'.format(name))
     if cached_model:
         dbg('Loaded cached model with hyperparameters: {}'.format(str(cached_model[0])))
         return cached_model[1]
+    info('Training model "{}" ...'.format(name))
     if model_type == 'ppmi':
         model = train_ppmi(sentences)
     elif model_type == 'svd':
@@ -319,7 +322,10 @@ def models(model_type):
 
 if __name__ == '__main__':
     # If this script is called, just build every model so they're cached.
+    target_corpus = None if len(sys.argv) < 2 else sys.argv[1]
     for model_type in MODEL_TYPES:
         for name, model in models(model_type):
-            pass
+            if target_corpus and target_corpus in name.lower():
+                info('Entering interactive query mode for corpus "{}" with model type {}.'.format(name, model_type.upper()))
+                nn(model)
 

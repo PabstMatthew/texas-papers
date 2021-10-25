@@ -14,15 +14,16 @@ from utils.utils import *
     A set of newspaper that have high-quality scans.
 '''
 corpus_info = {
-        'Dallas-Daily-Herald':          ('sn83025733', range(1873, 1887)),
-        'Austin-Weekly-Statesman':      ('sn86088296', range(1883, 1898)),
-        'Waco-Evening-News':            ('sn86088201', range(1892, 1894)),
-        'San-Marcos-Free-Press':        ('sn86088181', range(1877, 1890)),
-        'San-Antonio-Light':            ('sn87090966', range(1883, 1886)),
-        'Fort-Worth-Daily-Gazette':     ('sn86064205', range(1883, 1890)),
-        'Brownsville-Daily-Herald':     ('sn86099906', range(1897, 1909)),
-        'Bryan-Morning-Eagle':          ('sn86088652', range(1889, 1909)),
-        'El-Paso-Daily-Herald':         ('sn86064199', range(1896, 1901)),
+        'Dallas-Daily-Herald-1873-1887':        ('sn83025733', range(1873, 1887)),
+        'Austin-Weekly-Statesman-1883-1898':    ('sn86088296', range(1883, 1898)),
+        'Waco-Evening-News-1892-1894':          ('sn86088201', range(1892, 1894)),
+        'San-Marcos-Free-Press-1877-1890':      ('sn86088181', range(1877, 1890)),
+        'San-Antonio-Light-1883-1886':          ('sn87090966', range(1883, 1886)),
+        'Fort-Worth-Daily-Gazette-1883-1890':   ('sn86064205', range(1883, 1890)),
+        'Brownsville-Daily-Herald-1897-1909':   ('sn86099906', range(1897, 1909)),
+        'Bryan-Morning-Eagle-1889-1899':        ('sn86088652', range(1889, 1899)),
+        'Bryan-Morning-Eagle-1899-1909':        ('sn86088652', range(1900, 1909)),
+        'El-Paso-Daily-Herald-1896-1901':       ('sn86064199', range(1896, 1901)),
 }
 
 '''
