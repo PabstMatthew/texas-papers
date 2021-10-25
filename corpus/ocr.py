@@ -72,7 +72,7 @@ def ocr(url, cleanup=True, cached_only=False):
         txt = pytesseract.image_to_string(fname, config=ocr_config_str)
         dbg_end()
     except pytesseract.pytesseract.TesseractNotFoundError:
-        print('You need to install tesseract with your package manager!')
+        err('You need to install tesseract with your package manager!')
 
     # Cleanup and cache the result.
     if cleanup:
