@@ -102,7 +102,7 @@ def scrape_text(name, links):
     random.shuffle(uncached_links)
     for link in uncached_links:
         txt = img2txt(link)
-        if handle_txt(txt):
+        if txt and handle_txt(txt):
             break
     info('Completed creating corpus "{}".'.format(name))
     txt = '\n'.join(txts)

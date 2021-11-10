@@ -61,9 +61,7 @@ def build_dictionary():
     freq_threshold = HYPERPARAMS['freq_threshold']
     dictionary = None
     for name, txt in corpus.corpora():
-        words = nltk.word_tokenize(txt)
-        dist = FreqDist(map(lambda word: word.lower(), 
-                    filter(lambda word: word.isalpha(), words)))
+        dist = corpus.corpus_word_distribution(name)
         for word, count in list(dist.items()):
             if count < freq_threshold:
                 del dist[word]
@@ -322,7 +320,7 @@ def models(model_type):
 
 if __name__ == '__main__':
     # If this script is called, just build every model so they're cached.
-    target_corpus = None if len(sys.argv) < 2 else sys.argv[1]
+    target_corpus = None if len(sys.argv) < 2 else sys.argv[1].lower()
     for model_type in MODEL_TYPES:
         for name, model in models(model_type):
             if target_corpus and target_corpus in name.lower():

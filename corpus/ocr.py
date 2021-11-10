@@ -35,8 +35,19 @@ ocr_config_str = ' '.join(['-c '+key+'='+value for key, value in ocr_config_dict
         returns: a string of the post-processed text in the image.
 '''
 def img2txt(url, cached_only=False):
+    # Check cache.
+    scope = 'ImageText'
+    fname = urlparse(url).path[1:].replace('/', '_')
+    cached_txt = cache_read(scope, fname)
+    if cached_txt:
+        return cached_txt
+    # Do the OCR and post-processing.
     txt = ocr(url, cached_only=cached_only)
+    if txt is None:
+        # If something went wrong, don't cache the result.
+        return None
     txt = postprocess(txt)
+    cache_write(scope, fname, txt)
     return txt
 
 '''
@@ -57,13 +68,22 @@ def ocr(url, cleanup=True, cached_only=False):
 
     # Download the file.
     dbg_start('Downloading file "{}"'.format(fname))
-    try:
-        urlretrieve(url, fname)
-    except Exception as e:
-        warn('Encountered error: {}'.format(e))
-        time.sleep(1)
-        warn('Retrying ...')
-        urlretrieve(url, fname)
+    tries = 0
+    while True:
+        if tries >= 10:
+            # Just give up on this link at some point.
+            warn('Failed 10 times in a row retrieving "{}". Skipping this URL...'.format(url))
+            return None
+        tries += 1
+        try:
+            # Try to download the image.
+            urlretrieve(url, fname)
+            break
+        except Exception as e:
+            # If something goes wrong, just sleep and try again.
+            warn('Encountered error: {}'.format(e))
+            time.sleep(tries)
+            warn('Retrying ...')
     dbg_end()
 
     # Run the OCR.
@@ -247,8 +267,6 @@ def remove_spurious_letters(txt):
 
 # Combines all the above methods on OCR'd text.
 def postprocess(txt):
-    if txt is None:
-        return None
     txt = fix_hyphens(txt)
     #txt = simplify_paragraphs(txt)
     txt = consolidate_whitespace(txt)
