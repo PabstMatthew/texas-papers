@@ -1,4 +1,5 @@
 import sys
+import re
 
 import nltk
 from nltk.probability import FreqDist
@@ -6,10 +7,10 @@ import numpy as np
 import gensim
 from gensim.models import Word2Vec
 
-sys.path.append('.')
-from utils.utils import *
-from corpus import corpus
+from utils import *
+import corpus
 
+# The types of models supported.
 MODEL_TYPES = ['ppmi', 'svd', 'sgn']
 
 # The hyperparameters used to train models.
@@ -28,7 +29,7 @@ HYPERPARAMS = {
         'window_size': 4,
         # The threshold for word frequency. 
         # Only words that occur at least this many times in all corpora will be included.
-        'freq_threshold': 20,
+        'freq_threshold': 30,
         # Number of dimensions for lower-dimensionality models (SVD, SGN).
         'embedding_size': 300,
 }
@@ -43,12 +44,12 @@ def load_dictionary():
     name = 'Threshold-{}'.format(freq_threshold)
     if HYPERPARAMS['ignore_stopwords']:
         name += '-NoStopwords'
-    cached_dict = cache_read(scope, name)
+    cached_dict = set(resource_read(scope, name).splitlines())
     if cached_dict:
         return cached_dict
     else:
         dictionary = build_dictionary()
-        cache_write(scope, name, dictionary)
+        resource_write(scope, name, '\n'.join(dictionary))
         return dictionary
 
 '''
@@ -86,6 +87,50 @@ def build_dictionary():
         stopwords = set(nltk.corpus.stopwords.words('english'))
         dictionary = dictionary.difference(stopwords)
     return dictionary
+
+'''
+    An interactive function to edit the dictionary.
+'''
+def edit_dictionary():
+    scope = 'Dictionary'
+    freq_threshold = HYPERPARAMS['freq_threshold']
+    name = 'Threshold-{}'.format(freq_threshold)
+    if HYPERPARAMS['ignore_stopwords']:
+        name += '-NoStopwords'
+    dictionary = set(resource_read(scope, name).splitlines())
+    # Print all short words, many of which might be worth removing.
+    '''
+    info('Short words in dictionary:')
+    for word in list(dictionary):
+        if len(word) <= 4:
+            info('Is "{}" a word? Press <Enter> for no.'.format(word)) 
+            resp = input()
+            if resp == '':
+                info('Rejected "{}".'.format(word))
+                dictionary.remove(word)
+    '''
+    for corpus_name in corpus.corpus_info.keys():
+        word_dist = corpus.corpus_word_distribution(corpus_name)
+        for word in list(dictionary):
+            if word_dist[word] < freq_threshold:
+                dictionary.remove(word)
+    # Allow removal from the dictionary.
+    info('Enter a word to remove from the dictionary.')
+    word = input()
+    while len(word) > 0:
+        word = word.lower()
+        if word in dictionary:
+            dictionary.remove(word)
+        word = input()
+    # Allow additions to the dictionary.
+    info('Enter a word to add to the dictionary.')
+    word = input()
+    while len(word) > 0:
+        word = word.lower()
+        if word in dictionary:
+            dictionary.remove(word)
+        word = input()
+    resource_write(scope, name, '\n'.join(dictionary))
 
 # The dictionary to be used for every model.
 DICTIONARY = load_dictionary()
@@ -152,16 +197,19 @@ def context_window(i, words):
 
 '''
     Builds a list of sentences for a corpus after pre-processing all words.
-        txt: a string containing all the text in the corpus.
+        name: the name of the corpus
         returns: a list of lists of strings representing all sentences in the corpus.
 '''
-def build_sentences(name, txt):
+def build_sentences(name):
     scope = 'Sentences'
     cached_sentences = cache_read(scope, name)
     if cached_sentences:
         return cached_sentences
     sentences = []
-    for sentence in nltk.sent_tokenize(txt):
+    txt = corpus.corpus(name)
+    if txt is None:
+        err('Corpus "{}" is not present in the cache!'.format(name))
+    for sentence in corpus.corpus_sentences(name):
         # Preprocess the words in the sentence.
         words = list(
                     filter(lambda word: not word is None, 
@@ -236,18 +284,31 @@ def build_svd_matrix(matrix):
     return np.dot(U, S)
 
 '''
+    Yields all sentences containing a word from a specific corpus.
+        name: the name of the corpus.
+        word: the word to find examples of.
+        returns: a generator yielding strings of sentences.
+'''
+def corpus_examples(name, word):
+    for sentence in corpus.corpus_sentences(name):
+        if re.match('.*{}\W'.format(word), sentence.lower()):
+            begin = sentence.lower().find(word)
+            end = begin + len(word)
+            sentence = sentence[:begin]+CYAN+BOLD+sentence[begin:end]+END+sentence[end:]
+            yield sentence
+
+'''
     An interactive function to investigate the nearest neighbors of words in a meaning space.
+        name: the name of the corpus.
         space: a meaning space.
         n: the number of neighbors to print.
         sgn: whether space is an SGN model. Otherwise, space is assumed to be a matrix with 
              len(DICTIONARY) rows.
 '''
-def nn(space, n=10, sgn=False):
+def nn(name, space, n=10, sgn=False):
+    word_dist = corpus.corpus_word_distribution(name)
     if sgn:
         def print_nn(word):
-            if not word in DICTIONARY:
-                print('"{}" does not exist in the space!'.format(word))
-                return
             nns = space.wv.most_similar(word, topn=n)
             print('{} nearest neighbors of "{}":'.format(n, word))
             for i in range(n):
@@ -258,9 +319,6 @@ def nn(space, n=10, sgn=False):
         nn_counts = NearestNeighbors(n_neighbors=n, metric=scipy.spatial.distance.cosine)
         nn_counts.fit(space)
         def print_nn(word):
-            if not word in DICTIONARY:
-                print('"{}" does not exist in the space!'.format(word))
-                return
             idx = WORD_LOOKUP[word]
             if np.all((space[idx] == 0)):
                 print('"{}" has no occurrences!'.format(word))
@@ -268,36 +326,76 @@ def nn(space, n=10, sgn=False):
             dists, indices = nn_counts.kneighbors([space[idx]])
             for i in range(n):
                 print('  {} ({:.2f})'.format(WORD_LIST[indices[0][i]], dists[0][i]))
+            # If this is PPMI, print the most influential context words.
+            if len(space[idx]) == len(space):
+                info('Top context words:')
+                context = {WORD_LIST[i]: space[idx][i] for i in range(len(space))}
+                for word, val in sorted(context.items(), key=lambda item: item[1], reverse=True)[:n]:
+                    print('\t{}: {:.2f}'.format(word, val))
     info('Enter a word to see its nearest neighbors.')
     q = input()
     while len(q) > 0:
-        print_nn(q)
+        if not q in DICTIONARY:
+            print('"{}" does not exist in the space!'.format(q))
+        else:
+            info('"{}" occurs {} times in the corpus.'.format(q, word_dist[q]))
+            print_nn(q)
+            info('Examples:')
+            i = 0
+            for sentence in corpus_examples(name, q):
+                i += 1
+                print('{}. {}'.format(i, sentence))
+                if i == n:
+                    break
         q = input()
 
+'''
+    Trains a PPMI model.
+        sentences: a list of pre-processed sentences from a corpus.
+        returns: a matrix of shape (<dictionary_size>, <dictionary_size>) storing PPMI values.
+'''
 def train_ppmi(sentences):
     count_matrix = build_co_occurrence_count_matrix(sentences)
     ppmi_matrix = build_ppmi_matrix(count_matrix)
     return ppmi_matrix
 
+'''
+    Trains an SVD model from a PPMI model.
+        sentences: a list of pre-processed sentences from a corpus.
+        returns: a matrix of shape (<dictionary_size>, <embedding_size>) storing the SVD of a PPMI model.
+'''
 def train_svd(sentences):
     ppmi_matrix = train_ppmi(sentences)
     svd_matrix = build_svd_matrix(ppmi_matrix)
     return svd_matrix
 
+'''
+    Trains an SGN model from a PPMI model.
+        sentences: a list of pre-processed sentences from a corpus.
+        returns: a matrix of shape (<dictionary_size>, <embedding_size>) storing the embeddings for an SGN model.
+'''
 def train_sgn(sentences):
     embedding_size = HYPERPARAMS['embedding_size']
     sgn = Word2Vec(sentences, vector_size=embedding_size, sg=1)
+    info('Model performance: '+str(sgn.wv.evaluate_word_pairs("wordsim353.txt")))
     model = np.zeros((len(DICTIONARY), embedding_size))
     for i, word in enumerate(WORD_LIST):
         model[i] = sgn.wv[word]
     return model
 
+'''
+    Trains an SGN model from a PPMI model.
+        name: the name of the corpus.
+        sentences: a list of pre-processed sentences from the corpus.
+        model_type: a string in MODEL_TYPES, selecting the type of model to train.
+        returns: a matrix representing the model.
+'''
 def train_model(name, sentences, model_type):
     scope = 'Model'
     name += '-'+model_type
     cached_model = cache_read(scope, name)
     if cached_model:
-        dbg('Loaded cached model with hyperparameters: {}'.format(str(cached_model[0])))
+        #dbg('Loaded cached model "{}" with hyperparameters: {}'.format(name, str(cached_model[0])))
         return cached_model[1]
     info('Training model "{}" ...'.format(name))
     if model_type == 'ppmi':
@@ -312,18 +410,27 @@ def train_model(name, sentences, model_type):
         cache_write(scope, name, (HYPERPARAMS, model))
     return model
 
+'''
+    Yields all models of a particular type.
+        model_type: a string in MODEL_TYPES, selecting the type of model to yield.
+        returns: a generator that yields a tuple of the corpus name and the associated model.
+'''
 def models(model_type):
     for name, txt in corpus.corpora():
-        sentences = build_sentences(name, txt)
+        sentences = build_sentences(name)
         model = train_model(name, sentences, model_type)
         yield name, model
 
+'''
+    If this script is called, just build every model so they're cached.
+    If a particular model is passed as an argument, enter an interactive query mode.
+'''
 if __name__ == '__main__':
-    # If this script is called, just build every model so they're cached.
+    #edit_dictionary()
     target_corpus = None if len(sys.argv) < 2 else sys.argv[1].lower()
     for model_type in MODEL_TYPES:
         for name, model in models(model_type):
             if target_corpus and target_corpus in name.lower():
                 info('Entering interactive query mode for corpus "{}" with model type {}.'.format(name, model_type.upper()))
-                nn(model)
+                nn(name, model)
 

@@ -7,17 +7,16 @@ import sklearn
 import sklearn.manifold
 import matplotlib.pyplot as plt
 
-try:
-    from model import model
-except ImportError:
-    import model
-sys.path.append('.')
-from utils.utils import *
-from corpus import corpus
+from utils import *
+import corpus
+import model
 
 def frobenius_norm(A, B):
     frobenius_norm = np.linalg.norm(A-B)
     return frobenius_norm
+
+def cosine_dist(A, B):
+    return np.dot(A, B)
 
 def compute_similarities(model_type):
     scope = 'ModelSimilarity'
@@ -54,7 +53,7 @@ def compute_similarities(model_type):
                 base_rep = base_model[idx]
                 comp_rep = comp_model[idx]
                 min_word_freq = min(base_word_dist[word], comp_word_dist[word])
-                word_variance[word] += frobenius_norm(base_rep, comp_rep)
+                word_variance[word] += cosine_dist(base_rep, comp_rep)
     dbg_end()
     result = (names, distance_matrix, word_variance)
     cache_write(scope, model_type, result)

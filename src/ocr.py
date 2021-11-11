@@ -10,8 +10,7 @@ from difflib import SequenceMatcher
 import pytesseract
 import nltk
 
-sys.path.append('.')
-from utils.utils import *
+from utils import *
 
 '''
     OCR configuration variables.
@@ -101,7 +100,6 @@ def ocr(url, cleanup=True, cached_only=False):
         cache_write(scope, fname, txt)
     return txt
 
-
 '''
 Methods to compute the similarity of two strings.
     word_similarity uses the number of word occurrences shared between strings.
@@ -124,7 +122,6 @@ def word_similarity(ground_truth, comparison):
 
 def char_similarity(ground_truth, comparison):
     return SequenceMatcher(None, ground_truth, comparison).ratio()
-
 
 '''
     Methods to postprocess text from an OCR'd image.
@@ -177,6 +174,11 @@ def remove_spurious_punctuation(txt):
     txt = re.sub('({p})(\s*{p})+'.format(p=punctuation_regex), lambda match: match.group(1), txt)
     return txt
 
+# Removes random letters interspersed with punctutation.
+def remove_spurious_letters(txt):
+    return re.sub('\W([a-zA-Z]) [a-zA-Z]\W', lambda match: match.group(1), txt)
+
+# If a word has a capital letter in the middle, break it into two separate words.
 def split_words(txt):
     return re.sub(r'([a-z])([A-Z])', lambda match: match.group(1)+' '+match.group(2), txt)
 
@@ -186,6 +188,7 @@ def split_words(txt):
 import pkg_resources
 from symspellpy import SymSpell, Verbosity
 
+# Checks if a word could remotely be considered English.
 def nonsense_word(word):
     word = word.lower()
     if len(word) == 1:
@@ -219,6 +222,7 @@ def nonsense_word(word):
     # Some vowel frequencies are impossible.
     return vwl_freq < 0.1 or vwl_freq > 0.9
 
+# Tries to fix minor spelling errors.
 def fix_spelling(txt):
     # Dictionary initialization.
     max_edit = 1
@@ -229,7 +233,7 @@ def fix_spelling(txt):
             "symspellpy", "frequency_bigramdictionary_en_243_342.txt")
     sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
     sym_spell.load_bigram_dictionary(bigram_path, term_index=0, count_index=2)
-
+    # The main autocorrect function.
     def fix_word(match_obj):
         word = match_obj.group(0)
         # Ignore capitalized words.
@@ -258,17 +262,13 @@ def fix_spelling(txt):
         if nonsense_word(word):
             return ''
         return word
-
+    # Apply the autocorrect function to all words.
     txt = re.sub('[\w():;]*[\w]', fix_word, txt)
     return txt
-
-def remove_spurious_letters(txt):
-    return re.sub('\W([a-zA-Z]) [a-zA-Z]\W', lambda match: match.group(1), txt)
 
 # Combines all the above methods on OCR'd text.
 def postprocess(txt):
     txt = fix_hyphens(txt)
-    #txt = simplify_paragraphs(txt)
     txt = consolidate_whitespace(txt)
     txt = allcaps2firstcaps(txt)
     txt = split_words(txt)
@@ -277,12 +277,15 @@ def postprocess(txt):
     txt = remove_spurious_letters(txt)
     return txt
 
+'''
+    If this script is run as the main script, test the OCR and post-processing on a sample image 
+'''
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         test_url = sys.argv[1]
     else:
         test_url = 'https://chroniclingamerica.loc.gov/lccn/sn86088296/1883-04-19/ed-1/seq-1.jp2'
-        with open('corpus/ground-truth-lccn_sn86088296_1883-04-19_ed-1_seq-1.txt', 'r') as f:
+        with open('resources/ground-truth-lccn_sn86088296_1883-04-19_ed-1_seq-1.txt', 'r') as f:
             ground_truth = f.read()
             ground_truth = simplify_paragraphs(ground_truth)
     txt = img2txt(test_url)
@@ -294,5 +297,6 @@ if __name__ == '__main__':
         dbg(txt)
     #print(txt)
     #print(ground_truth)
-    #print(word_similarity(ground_truth, txt))
+    info('Character similarity score for test image (out of 1.0): {}'.format(char_similarity(ground_truth, txt)))
+    info('Word similarity score for test image (out of 1.0): {}'.format(word_similarity(ground_truth, txt)))
 

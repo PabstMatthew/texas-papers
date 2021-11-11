@@ -3,12 +3,8 @@ import sys
 import nltk
 from nltk.probability import FreqDist
 
-try:
-    from corpus.sources import scrape_image_links, scrape_text
-except ImportError:
-    from sources import scrape_image_links, scrape_text
-sys.path.append('.')
-from utils.utils import *
+from sources import scrape_image_links, scrape_text
+from utils import *
 
 '''
     A set of newspaper that have high-quality scans.
@@ -27,13 +23,39 @@ corpus_info = {
 }
 
 '''
+    Checks the cache for a particular corpus.
+        name: the name of the corpus
+        returns: a list of the sentences in a corpus if it exists, otherwise None.
+'''
+def corpus(name):
+    resource_read('Text', name+'-10e7', cached_text)
+    return cached_text
+
+'''
+    Splits a corpus into sentences.
+        name: the name of the corpus
+        returns: a list of the sentences in a corpus if it exists, otherwise None.
+'''
+def corpus_sentences(name):
+    txt = corpus(name)
+    if txt is None:
+        return None
+    scope = 'CorpusSentences'
+    cached_sents = cache_read(scope, name)
+    if cached_sents:
+        return cached_sents
+    sents = nltk.sent_tokenize(txt)
+    cache_write(scope, name, sents)
+    return sents
+
+'''
     Generator that yields pairs of the form (<corpus_name>, <corpus_text>)
 '''
 def corpora():
     for name, data in corpus_info.items():
-        cached_text = cache_read('Text', name+'-10e7')
-        if cached_text:
-            yield name, cached_text
+        txt = corpus(name)
+        if txt:
+            yield name, txt
 
 '''
     Returns the frequency distribution of words in a corpus.
@@ -78,6 +100,10 @@ def build_link_cache():
         years = data[1]
         scrape_image_links(name, resource_id, years)
 
+'''
+    If this script is called as the main program, build the corpus from the sources. 
+    This will take a very long time!
+'''
 if __name__ == '__main__':
     build_corpus_cache()
 
