@@ -29,7 +29,7 @@ HYPERPARAMS = {
         'window_size': 4,
         # The threshold for word frequency. 
         # Only words that occur at least this many times in all corpora will be included.
-        'freq_threshold': 200,
+        'freq_threshold': 100,
         # Number of dimensions for lower-dimensionality models (SVD, SGN).
         'embedding_size': 300,
 }
@@ -44,8 +44,9 @@ def load_dictionary():
     name = 'Threshold-{}'.format(freq_threshold)
     if HYPERPARAMS['ignore_stopwords']:
         name += '-NoStopwords'
-    cached_dict = set(resource_read(scope, name).splitlines())
+    cached_dict = resource_read(scope, name)
     if cached_dict:
+        cached_dict = set(resource_read(scope, name).splitlines())
         return cached_dict
     else:
         dictionary = build_dictionary()
@@ -101,13 +102,16 @@ def edit_dictionary():
     # Print all short words, many of which might be worth removing.
     '''
     info('Short words in dictionary:')
+    num = sum(map(lambda word: 1 if len(word) <= 4 else 0, dictionary))
+    i = 0
     for word in list(dictionary):
         if len(word) <= 4:
-            info('Is "{}" a word? Press <Enter> for no.'.format(word)) 
+            info('Is "{}" a word? Press <Enter> for no. ({}/{})'.format(word, i, num)) 
             resp = input()
             if resp == '':
                 info('Rejected "{}".'.format(word))
                 dictionary.remove(word)
+            i += 1
     '''
     for corpus_name in corpus.corpus_info.keys():
         word_dist = corpus.corpus_word_distribution(corpus_name)
