@@ -28,7 +28,7 @@ corpus_info = {
         returns: a list of the sentences in a corpus if it exists, otherwise None.
 '''
 def corpus(name):
-    resource_read('Text', name+'-10e7', cached_text)
+    cached_text = resource_read('Text', name+'-10e7')
     return cached_text
 
 '''

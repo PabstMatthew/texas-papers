@@ -29,7 +29,7 @@ HYPERPARAMS = {
         'window_size': 4,
         # The threshold for word frequency. 
         # Only words that occur at least this many times in all corpora will be included.
-        'freq_threshold': 30,
+        'freq_threshold': 200,
         # Number of dimensions for lower-dimensionality models (SVD, SGN).
         'embedding_size': 300,
 }
@@ -137,7 +137,8 @@ DICTIONARY = load_dictionary()
 dbg('Corpus dictionary: {}'.format(str(DICTIONARY)))
 dbg('Loaded corpus dictionary of size {}'.format(len(DICTIONARY)))
 # A list form of the dictionary used for reverse lookup.
-WORD_LIST = list(DICTIONARY)
+# This neededs to be sorted to keep the same order between runs to ensure the same word gets mapped to the same index.
+WORD_LIST = sorted(list(DICTIONARY))
 # A dictionary mapping words to their indices in the word list.
 WORD_LOOKUP = dict((word, i) for i, word in enumerate(WORD_LIST))
 
@@ -291,8 +292,9 @@ def build_svd_matrix(matrix):
 '''
 def corpus_examples(name, word):
     for sentence in corpus.corpus_sentences(name):
-        if re.match('.*{}\W'.format(word), sentence.lower()):
-            begin = sentence.lower().find(word)
+        match = re.search('\W{}\W'.format(word), sentence.lower())
+        if match:
+            begin = match.span(0)[0]+1
             end = begin + len(word)
             sentence = sentence[:begin]+CYAN+BOLD+sentence[begin:end]+END+sentence[end:]
             yield sentence
@@ -377,7 +379,7 @@ def train_svd(sentences):
 def train_sgn(sentences):
     embedding_size = HYPERPARAMS['embedding_size']
     sgn = Word2Vec(sentences, vector_size=embedding_size, sg=1)
-    info('Model performance: '+str(sgn.wv.evaluate_word_pairs("wordsim353.txt")))
+    info('Model performance: '+str(sgn.wv.evaluate_word_pairs("resources/wordsim353.txt")))
     model = np.zeros((len(DICTIONARY), embedding_size))
     for i, word in enumerate(WORD_LIST):
         model[i] = sgn.wv[word]
@@ -433,4 +435,3 @@ if __name__ == '__main__':
             if target_corpus and target_corpus in name.lower():
                 info('Entering interactive query mode for corpus "{}" with model type {}.'.format(name, model_type.upper()))
                 nn(name, model)
-
