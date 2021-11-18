@@ -111,6 +111,7 @@ def plot_word_embedding_all_corpora(model_type, spaces, names, word, fpath=None)
     dbg_end()
     if fpath:
         plt.savefig(fpath, dpi=300)
+        plt.close()
     else:
         plt.show()
 
@@ -132,6 +133,7 @@ def plot_word_embedding_nn(model_type, name, space, word, fpath=None):
     dbg_end()
     if fpath:
         plt.savefig(fpath, dpi=300)
+        plt.close()
     else:
         plt.show()
 
