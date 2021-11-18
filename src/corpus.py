@@ -3,7 +3,7 @@ import sys
 import nltk
 from nltk.probability import FreqDist
 
-from sources import scrape_image_links, scrape_text
+import sources
 from utils import *
 
 '''
@@ -28,8 +28,25 @@ corpus_info = {
         returns: a list of the sentences in a corpus if it exists, otherwise None.
 '''
 def corpus(name):
-    cached_text = resource_read('Text', name+'-10e7')
+    cached_text = resource_read('Text', name+sources.TARGET_EXP_SUFFIX)
     return cached_text
+
+'''
+    Gets the source link where a quote originated from.
+        name: the name of the corpus
+        returns: a string containing a link to the resource, or None
+'''
+def get_source_link(name, quote):
+    cached_sources = resource_read('TextSources', name)
+    if cached_sources is None:
+        warn('Failed to load TextSources! You need to unzip resources.zip.')
+        return None
+    cached_sources = cached_sources.splitlines()
+    for i, line in enumerate(corpus(name).splitlines()):
+        idx = line.find(quote)
+        if idx != -1:
+            return cached_sources[i]
+    return None
 
 '''
     Splits a corpus into sentences.
@@ -67,7 +84,7 @@ def corpus_word_distribution(corpus_name):
     cached_result = cache_read(scope, corpus_name)
     if cached_result:
         return cached_result
-    corpus_txt = cache_read('Text', corpus_name+'-10e7')
+    corpus_txt = cache_read('Text', corpus_name+TARGET_EXP_SUFFIX)
     if corpus_txt is None:
         err('Corpus "{}" does not exist in the cache!'.format(corpus_name))
     words = nltk.word_tokenize(corpus_txt)
@@ -81,13 +98,12 @@ def corpus_word_distribution(corpus_name):
     in order to build out the cache containing all the corpus data.
 '''
 def build_corpus_cache():
-    freq_threshold = 20
     for name, data in corpus_info.items():
         info('Building corpus for "{}"'.format(name))
         resource_id = data[0]
         years = data[1]
-        links = scrape_image_links(name, resource_id, years)
-        corpus = scrape_text(name, links)
+        links = sources.scrape_image_links(name, resource_id, years)
+        corpus = sources.scrape_text(name, links)
 
 '''
     Iterates over known corpuses and scrapes links to images in order to build out the cache 
@@ -98,7 +114,7 @@ def build_link_cache():
         info('Building image link database for "{}"'.format(name))
         resource_id = data[0]
         years = data[1]
-        scrape_image_links(name, resource_id, years)
+        sources.scrape_image_links(name, resource_id, years)
 
 '''
     If this script is called as the main program, build the corpus from the sources. 

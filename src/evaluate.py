@@ -88,8 +88,50 @@ def model_similarities(model_type):
     cache_write(scope, model_type, distance_matrix)
     return distance_matrix
 
+def plot_word_embedding_all_corpora(model_type, word):
+    # Build a plot showing t-SNE embeddings of a word for all corpora.
+    dbg_start('Plotting word embeddings across all corpora for word "{}" and model type "{}"'.format(word, model_type))
+    idx = model.WORD_LOOKUP[word]
+    word_embeddings = []
+    for name, m in model.models(model_type):
+        lowdim_embedding = sklearn.manifold.TSNE().fit_transform(m)
+        word_embeddings.append(lowdim_embedding[idx])
+    plt.figure()
+    names = [name for name in corpus.corpus_info.keys()]
+    for i, pt in enumerate(word_embeddings):
+        plt.scatter(pt[0], pt[1], label=names[i])
+    plt.legend()
+    plt.title('Word embeddings of "{}" for model type {}'.format(word, model_type))
+    plt.show()
+    dbg_end()
+
+def plot_word_embedding_nn(model_type, name, word):
+    # Build a plot showing a word's embedding with its nearest neighbors.
+    dbg_start('Plotting nearest neighbor embeddings for word "{}" in corpus {} and model type {}'.format(word, name, model_type))
+    idx = model.WORD_LOOKUP[word]
+    for n, m in model.models(model_type):
+        if n == name:
+            lowdim_embedding = sklearn.manifold.TSNE().fit_transform(m)
+            indices, _ = model.nn(name, m, word)
+            words = [model.WORD_LIST[idx] for idx in indices]
+            word_embeddings = [lowdim_embedding[idx] for idx in indices]
+            plt.figure()
+            x = [embed[0] for embed in word_embeddings]
+            y = [embed[1] for embed in word_embeddings]
+            for i, embedding in enumerate(word_embeddings):
+                plt.scatter(embedding[0], embedding[1], label=words[i])
+            plt.legend()
+            plt.title('Nearest neighbors of "{}" for {}-{}'.format(word, name, model_type))
+            plt.show()
+            dbg_end()
+            return
+    dbg_end()
+    warn('No model "{}" of type "{}" found!'.format(name, model_type))
+
 if __name__ == '__main__':
     for model_type in model.MODEL_TYPES:
+        if model_type != 'sgn':
+            continue
         info('{} model:'.format(model_type.upper()))
         names = [name for name in corpus.corpus_info.keys()]
         # Print the similarity matrix.
@@ -104,19 +146,8 @@ if __name__ == '__main__':
         info('Top {} highest variance words:'.format(K))
         for word, var in sorted(word_variance.items(), key=lambda item: item[1], reverse=True)[:K]:
             print('\t{}: {:.2f}'.format(word, var))
-        '''
-        # Build a plot showing t-SNE embeddings of a word for all corpora.
-        word = 'railway'
-        idx = model.WORD_LOOKUP[word]
-        word_embeddings = []
-        for name, m in model.models(model_type):
-            lowdim_embedding = sklearn.manifold.TSNE().fit_transform(m)
-            word_embeddings.append(lowdim_embedding[idx])
-        fig, ax = plt.subplots()
-        for i, pt in enumerate(word_embeddings):
-            ax.scatter(pt[0], pt[1], label=names[i])
-        ax.legend()
-        ax.grid(True)
-        plt.show()
-        '''
+        word = 'arrested'
+        plot_word_embedding_all_corpora(model_type, word)
+        for name in names:
+            plot_word_embedding_nn(model_type, name, word)
 

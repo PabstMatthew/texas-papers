@@ -9,6 +9,11 @@ import nltk
 from ocr import img2txt
 from utils import *
 
+# Defines the number of words to scrape for each corpus.
+TARGET_EXP = 7
+TARGET_CORPUS_SIZE = 10 ** TARGET_EXP
+TARGET_EXP_SUFFIX = '-10e{}'.format(TARGET_EXP)
+
 '''
     Scrapes links to newspaper scans given a resource ID and set of years.
         resource_id: a string like 'sn83025733' identifying the particular newspaper.
@@ -66,8 +71,6 @@ def scrape_image_links(name, resource_id, years):
 '''
 def scrape_text(name, links):
     # Number of words to scrape for the corpus.
-    TARGET_EXP = 7
-    TARGET_CORPUS_SIZE = 10 ** TARGET_EXP
     scope = 'Text'
     # Check the cache first.
     name += '-10e' + str(TARGET_EXP)
@@ -85,11 +88,13 @@ def scrape_text(name, links):
         completion = num_words / TARGET_CORPUS_SIZE
         info('  Finished! {:.2f}% complete with this corpus.'.format(completion*100.0))
         return completion >= 1.0
+    source_links = [] # keeps track of links, so text can later be tied to a particular source.
     # First, use any links that were cached.
     uncached_links = []
     for link in links:
         txt = img2txt(link, cached_only=True)
         if txt:
+            source_links.append(link)
             if handle_txt(txt):
                 break
         else:
@@ -98,10 +103,12 @@ def scrape_text(name, links):
     random.shuffle(uncached_links)
     for link in uncached_links:
         txt = img2txt(link)
+        source_links.append(link)
         if txt and handle_txt(txt):
             break
     info('Completed creating corpus "{}".'.format(name))
     txt = '\n'.join(txts)
     resource_write(scope, name, txt)
+    resource_write('TextSources', name[:name.rindex('-')], '\n'.join(source_links))
     return txt
 

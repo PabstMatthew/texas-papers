@@ -6,6 +6,8 @@ from nltk.probability import FreqDist
 import numpy as np
 import gensim
 from gensim.models import Word2Vec
+import scipy
+from sklearn.neighbors import NearestNeighbors
 
 from utils import *
 import corpus
@@ -300,45 +302,54 @@ def corpus_examples(name, word):
         if match:
             begin = match.span(0)[0]+1
             end = begin + len(word)
+            # Get the original link where this sentence was scraped from.
+            source_link = corpus.get_source_link(name, sentence)
+            # Highlight the word's occurrence with terminal control characters.
             sentence = sentence[:begin]+CYAN+BOLD+sentence[begin:end]+END+sentence[end:]
-            yield sentence
+            yield source_link, sentence
+
+'''
+    Finds the nearest neighbors of a word in a space.
+        name: the name of the corpus.
+        space: a meaning space.
+        word: the word of interest.
+        n: the number of neighbors to print.
+        returns: two lists of length n. the first list contains indices of the nearest neighbors,
+                 and the second list contains the distance between 
+'''
+def nn(name, space, word, n=10):
+    nn_counts = NearestNeighbors(n_neighbors=n, metric=scipy.spatial.distance.cosine)
+    nn_counts.fit(space)
+    idx = WORD_LOOKUP[word]
+    dists, indices = nn_counts.kneighbors([space[idx]])
+    return indices[0], dists[0]
 
 '''
     An interactive function to investigate the nearest neighbors of words in a meaning space.
         name: the name of the corpus.
         space: a meaning space.
         n: the number of neighbors to print.
-        sgn: whether space is an SGN model. Otherwise, space is assumed to be a matrix with 
-             len(DICTIONARY) rows.
 '''
-def nn(name, space, n=10, sgn=False):
+def nn_query(name, space, n=10):
     word_dist = corpus.corpus_word_distribution(name)
-    if sgn:
-        def print_nn(word):
-            nns = space.wv.most_similar(word, topn=n)
-            print('{} nearest neighbors of "{}":'.format(n, word))
-            for i in range(n):
-                print('    {} ({:.2f})'.format(nns[i][0], nns[i][1]))
-    else:
-        import scipy
-        from sklearn.neighbors import NearestNeighbors
-        nn_counts = NearestNeighbors(n_neighbors=n, metric=scipy.spatial.distance.cosine)
-        nn_counts.fit(space)
-        def print_nn(word):
-            idx = WORD_LOOKUP[word]
-            if np.all((space[idx] == 0)):
-                print('"{}" has no occurrences!'.format(word))
-            print('{} nearest neighbors of "{}":'.format(n, word))
-            dists, indices = nn_counts.kneighbors([space[idx]])
-            for i in range(n):
-                print('  {} ({:.2f})'.format(WORD_LIST[indices[0][i]], dists[0][i]))
-            # If this is PPMI, print the most influential context words.
-            if len(space[idx]) == len(space):
-                info('Top context words:')
-                context = {WORD_LIST[i]: space[idx][i] for i in range(len(space))}
-                for word, val in sorted(context.items(), key=lambda item: item[1], reverse=True)[:n]:
-                    print('\t{}: {:.2f}'.format(word, val))
-    info('Enter a word to see its nearest neighbors.')
+    def print_nn(word):
+        # Make sure the word exists.
+        idx = WORD_LOOKUP[word]
+        if np.all((space[idx] == 0)):
+            print('"{}" has no occurrences!'.format(word))
+        # Print the nearest neighbors.
+        indices, dists = nn(name, space, word, n)
+        print('{} nearest neighbors of "{}":'.format(n, word))
+        for i in range(n):
+            print('  {} ({:.2f})'.format(WORD_LIST[indices[i]], dists[i]))
+        # If this is PPMI, print the most influential context words.
+        if len(space[idx]) == len(space):
+            info('Top context words:')
+            context = {WORD_LIST[i]: space[idx][i] for i in range(len(space))}
+            for word, val in sorted(context.items(), key=lambda item: item[1], reverse=True)[:n]:
+                print('\t{}: {:.2f}'.format(word, val))
+    # Query loop.
+    info('Enter a word to see its nearest neighbors. To exit this mode, simply enter nothing.')
     q = input()
     while len(q) > 0:
         if not q in DICTIONARY:
@@ -348,9 +359,11 @@ def nn(name, space, n=10, sgn=False):
             print_nn(q)
             info('Examples:')
             i = 0
-            for sentence in corpus_examples(name, q):
+            for source_link, sentence in corpus_examples(name, q):
                 i += 1
-                print('{}. {}'.format(i, sentence))
+                print('{}. {}'.format(i, source_link))
+                print(sentence)
+                print()
                 if i == n:
                     break
         q = input()
@@ -432,10 +445,9 @@ def models(model_type):
     If a particular model is passed as an argument, enter an interactive query mode.
 '''
 if __name__ == '__main__':
-    #edit_dictionary()
     target_corpus = None if len(sys.argv) < 2 else sys.argv[1].lower()
     for model_type in MODEL_TYPES:
         for name, model in models(model_type):
             if target_corpus and target_corpus in name.lower():
                 info('Entering interactive query mode for corpus "{}" with model type {}.'.format(name, model_type.upper()))
-                nn(name, model)
+                nn_query(name, model)
