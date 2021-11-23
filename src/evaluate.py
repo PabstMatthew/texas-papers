@@ -18,12 +18,12 @@ def frobenius_norm(A, B):
 def cosine_dist(A, B):
     return np.dot(A, B) / (np.linalg.norm(A)*np.linalg.norm(B))
 
-def tsne_embedding(name, model, model_type):
+def tsne_embedding(name, space, model_type):
     scope = 'tsneEmbedding-'+model_type
     cached_result = cache_read(scope, name)
-    if cached_result:
+    if not cached_result is None:
         return cached_result
-    tsne_embedding = sklearn.manifold.TSNE().fit_transform(m)
+    tsne_embedding = sklearn.manifold.TSNE().fit_transform(space)
     cache_write(scope, name, tsne_embedding)
     return tsne_embedding
 
@@ -67,6 +67,10 @@ def model_similarities(model_type, spaces, names):
         distance_matrix[i, i] = 0
         for j in range(i+1, num_models):
             comp_model = spaces[j]
+            # If necessary, align the spaces as best as possible.
+            if model_type != 'ppmi':
+                R, _ = scipy.linalg.orthogonal_procrustes(comp_model, base_model)
+                comp_model = np.dot(comp_model, R)
             # Compute the Frobenius norm between each pair of models.
             distance_matrix[i, j] = frobenius_norm(base_model, comp_model)
             distance_matrix[j, i] = distance_matrix[i, j]
@@ -99,9 +103,8 @@ def plot_word_embedding_all_corpora(model_type, spaces, names, word, fpath=None)
     dbg_start('Plotting word embeddings across all corpora for word "{}" and model type "{}"'.format(word, model_type))
     idx = model.WORD_LOOKUP[word]
     word_embeddings = []
-    for space in spaces:
-        lowdim_embedding = sklearn.manifold.TSNE().fit_transform(space)
-        word_embeddings.append(lowdim_embedding[idx])
+    for i, space in enumerate(spaces):
+        word_embeddings.append(tsne_embedding(names[i], space, model_type))
     plt.figure()
     names = [name for name in corpus.corpus_info.keys()]
     for i, pt in enumerate(word_embeddings):
@@ -119,7 +122,7 @@ def plot_word_embedding_nn(model_type, name, space, word, fpath=None):
     # Build a plot showing a word's embedding with its nearest neighbors.
     dbg_start('Plotting nearest neighbor embeddings for word "{}" in corpus {} and model type {}'.format(word, name, model_type))
     idx = model.WORD_LOOKUP[word]
-    lowdim_embedding = sklearn.manifold.TSNE().fit_transform(space)
+    lowdim_embedding = tsne_embedding(name, space, model_type)
     indices, _ = model.nn(name, space, word)
     words = [model.WORD_LIST[idx] for idx in indices]
     word_embeddings = [lowdim_embedding[idx] for idx in indices]
@@ -136,6 +139,32 @@ def plot_word_embedding_nn(model_type, name, space, word, fpath=None):
         plt.close()
     else:
         plt.show()
+
+def plot_distance_matrix(distance_matrix, normalize=False, method='tsne'):
+    names = [name for name in corpus.corpus_info.keys()]
+    # Normalize distance matrix to z-scores
+    if normalize:
+        dists = [distance_matrix[i][j] for i in range(1, len(names)) for j in range(i+1, len(names))]
+        mean = np.mean(dists)
+        std = np.std(dists)
+        for i in range(len(names)):
+            for j in range(len(names)):
+                if i == j:
+                    continue
+                distance_matrix[i][j] -= mean
+                distance_matrix[i][j] /= std
+    if method == 'tsne':
+        embedding = sklearn.manifold.TSNE().fit_transform(distance_matrix)
+    elif method == 'pca':
+        pca = sklearn.decomposition.PCA(n_components=2)
+        pca.fit(distance_matrix)
+        embedding = np.transpose(pca.components_)
+    plt.figure()
+    for i, pt in enumerate(embedding):
+        plt.scatter(pt[0], pt[1], label=names[i])
+    plt.legend()
+    plt.title('tSNE Visualization of Model Differences')
+    plt.show()
 
 if __name__ == '__main__':
     for model_type in model.MODEL_TYPES:
@@ -157,16 +186,22 @@ if __name__ == '__main__':
         info('Similarity matrix:')
         for i in range(len(names)):
             vals = ['{:.2f}'.format(val) for val in distance_matrix[i]]
-            print('\t{:24} : {}'.format(names[i], ' | '.join(vals)))
+            #print('\t{:24} : {}'.format(names[i], ' | '.join(vals)))
+            # Print each city's closest neighbors in order.
+            print('{}:'.format(names[i]))
+            for j, val in enumerate([(x, y) for y, x in sorted(zip(distance_matrix[i], names))]):
+                print('  {}. {} ({:.0f})'.format(j, val[0], val[1]))
+        plot_distance_matrix(distance_matrix, normalize=True, method='tsne')
+
         # Print the top K most variable words.
         K = 30
         info('Top {} highest variance words:'.format(K))
         for word, var in sorted(word_variance.items(), key=lambda item: item[1], reverse=True)[:K]:
             print('\t{}: {:.2f}'.format(word, var))
-            create_word_figures(model_type, spaces, names, word)
+            #create_word_figures(model_type, spaces, names, word)
         '''
         word = 'court'
-        plot_word_embedding_all_corpora(model_type, word)
+        plot_word_embedding_all_corpora(model_type, spaces, names, word)
         for name, space in model.models(model_type):
             plot_word_embedding_nn(model_type, name, space, word)
         plt.show()
