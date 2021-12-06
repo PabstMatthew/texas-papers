@@ -27,6 +27,11 @@ def tsne_embedding(name, space, model_type):
     cache_write(scope, name, tsne_embedding)
     return tsne_embedding
 
+def normalize_embeddings(space):
+    for i in range(len(space)):
+        space[i] /= np.linalg.norm(space[i])
+    return space
+
 def word_variances(model_type, spaces, names):
     scope = 'WordVariance'
     cached_result = cache_read(scope, model_type)
@@ -173,6 +178,7 @@ if __name__ == '__main__':
         spaces = []
         for name, space in model.models(model_type):
             names.append(name)
+            space = normalize_embeddings(space)
             if len(spaces) > 0:
                 # If necessary, align all spaces to the first space.
                 if model_type != 'ppmi':
@@ -184,14 +190,33 @@ if __name__ == '__main__':
         word_variance = word_variances(model_type, spaces, names)
         distance_matrix = model_similarities(model_type, spaces, names)
         info('Similarity matrix:')
+        minimum = 10000
         for i in range(len(names)):
             vals = ['{:.2f}'.format(val) for val in distance_matrix[i]]
-            #print('\t{:24} : {}'.format(names[i], ' | '.join(vals)))
+            print('\t{:24} : {}'.format(names[i], ' | '.join(vals)))
+            '''
             # Print each city's closest neighbors in order.
             print('{}:'.format(names[i]))
             for j, val in enumerate([(x, y) for y, x in sorted(zip(distance_matrix[i], names))]):
                 print('  {}. {} ({:.0f})'.format(j, val[0], val[1]))
+                if val[1] != 0 and val[1] < minimum:
+                    minimum = val[1]
+            '''
+        '''
+        # Plot a heatmap of the distance matrix.
+        fig, ax = plt.subplots()
+        im = ax.imshow(distance_matrix, vmin=minimum)
+        ax.set_yticks(np.arange(len(names)))
+        ax.set_yticklabels(names)
+        ax.set_xticks(np.arange(len(names)))
+        fig.tight_layout()
+        plt.colorbar(im)
+        plt.show()
+        '''
+        '''
+        # Plot the distance matrix using tSNE.
         plot_distance_matrix(distance_matrix, normalize=True, method='tsne')
+        '''
 
         # Print the top K most variable words.
         K = 30
@@ -200,6 +225,7 @@ if __name__ == '__main__':
             print('\t{}: {:.2f}'.format(word, var))
             #create_word_figures(model_type, spaces, names, word)
         '''
+        # Plot the embedding and nearest neighbors for a specific word.
         word = 'court'
         plot_word_embedding_all_corpora(model_type, spaces, names, word)
         for name, space in model.models(model_type):
