@@ -6,6 +6,17 @@ from nltk.probability import FreqDist
 import sources
 from utils import *
 
+# Make sure NLTK resources are downloaded.
+nltk_resources = [('tokenizers/punkt', 'punkt'),
+                  ('tagger/averaged_perceptron_tagger', 'averaged_perceptron_tagger'),
+                  ('corpora/stopwords', 'stopwords')]
+for path, resource in nltk_resources:
+    try:
+        nltk.data.find(path)
+    except LookupError:
+        info('nltk resource "{}" not found, downloading now ...'.format(resource))
+        nltk.download(resource)
+
 '''
     A set of newspaper that have high-quality scans.
 '''
