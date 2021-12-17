@@ -3,16 +3,14 @@ An analysis of the linguistic similarities between Texan cities' word usage in n
 
 ## Setting up
 To setup this project locally, you can run the following commands. I'm assuming you have `python3` installed.
-You'll also need to install `git-lfs` to download the resources. On Ubuntu, you can do that using this command, 
-`sudo apt install git-lfs`.
-
 ```
 git clone https://github.com/pabstmatthew/texas-papers
 cd texas-papers
+pip3 install -r requirements.txt
 cd resources
+gdown --id 1LKzjXkOamQO0Tr9yTUE1rOGvPvfPSqbD
 unzip resources.zip
 cd ..
-pip install -r requirements.txt
 ```
 
 ## Building models
