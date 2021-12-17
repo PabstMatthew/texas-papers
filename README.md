@@ -7,6 +7,7 @@ To setup this project locally, you can run the following commands. I'm assuming 
 git clone https://github.com/pabstmatthew/texas-papers
 cd texas-papers
 pip3 install -r requirements.txt
+mkdir resources
 cd resources
 gdown --id 1LKzjXkOamQO0Tr9yTUE1rOGvPvfPSqbD
 unzip resources.zip
