@@ -9,7 +9,9 @@ from utils import *
 # Make sure NLTK resources are downloaded.
 nltk_resources = [('tokenizers/punkt', 'punkt'),
                   ('taggers/averaged_perceptron_tagger', 'averaged_perceptron_tagger'),
-                  ('corpora/stopwords', 'stopwords')]
+                  ('corpora/stopwords', 'stopwords'),
+                  ('corpora/words', 'words'),
+                  ('corpora/brown', 'brown')]
 for path, resource in nltk_resources:
     try:
         nltk.data.find(path)
