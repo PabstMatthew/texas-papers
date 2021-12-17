@@ -296,7 +296,7 @@ def build_svd_matrix(matrix):
         word: the word to find examples of.
         returns: a generator yielding strings of sentences.
 '''
-def corpus_examples(name, word):
+def corpus_examples(name, word, add_highlight=False):
     for sentence in corpus.corpus_sentences(name):
         match = re.search('\W{}\W'.format(word), sentence.lower())
         if match:
@@ -305,7 +305,8 @@ def corpus_examples(name, word):
             # Get the original link where this sentence was scraped from.
             source_link = corpus.get_source_link(name, sentence)
             # Highlight the word's occurrence with terminal control characters.
-            sentence = sentence[:begin]+CYAN+BOLD+sentence[begin:end]+END+sentence[end:]
+            if add_highlight:
+                sentence = sentence[:begin]+CYAN+BOLD+sentence[begin:end]+END+sentence[end:]
             yield source_link, sentence
 
 '''
@@ -359,7 +360,7 @@ def nn_query(name, space, n=10):
             print_nn(q)
             info('Examples:')
             i = 0
-            for source_link, sentence in corpus_examples(name, q):
+            for source_link, sentence in corpus_examples(name, q, add_highlight=True):
                 i += 1
                 print('{}. {}'.format(i, source_link))
                 print(sentence)
