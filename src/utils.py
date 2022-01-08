@@ -49,8 +49,10 @@ def warn(msg):
     Functions to allow caching intermediate and final results.
 '''
 
-CACHE_PATH = '.cache'
-RESOURCE_PATH = 'resources'
+# Get the absolute path to the repository, in case the script was called from a different directory.
+TOP_LEVEL_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+CACHE_PATH = os.path.join(TOP_LEVEL_DIR,'.cache')
+RESOURCE_PATH = os.path.join(TOP_LEVEL_DIR,'resources')
 
 '''
     Writes some data to the cache.
